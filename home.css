@@ -212,8 +212,8 @@ button { color: inherit; }
 .footer-brand .brand-mark { width: 25px; height: 25px; border-radius: 7px; font-size: 15px; }
 .footer-brand .brand-name { font-size: 12px; }
 
-.modal-backdrop { position: fixed; z-index: 10; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(4,8,5,.77); backdrop-filter: blur(8px); }
-.auth-modal { position: relative; width: min(100%, 420px); padding: 31px 34px 25px; border: 1px solid rgba(224,218,174,.2); border-radius: 13px; background: #18221a; box-shadow: 0 24px 90px rgba(0,0,0,.5); animation: arrive .2s ease-out; }
+.modal-backdrop { position: fixed; z-index: 10; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: 20px; background: rgba(4,8,5,.77); backdrop-filter: blur(8px); }
+.auth-modal { position: relative; width: min(100%, 420px); max-height: calc(100vh - 40px); overflow-y: auto; padding: 31px 34px 25px; border: 1px solid rgba(224,218,174,.2); border-radius: 13px; background: #18221a; box-shadow: 0 24px 90px rgba(0,0,0,.5); animation: arrive .2s ease-out; }
 @keyframes arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .modal-close { position: absolute; top: 13px; right: 15px; border: 0; background: transparent; color: var(--dim); font-size: 25px; cursor: pointer; }
 .modal-emblem { width: 42px; height: 42px; margin-bottom: 19px; border-radius: 12px; font: 800 24px 'Cinzel', serif; }

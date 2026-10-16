@@ -449,7 +449,10 @@ function getTerrainHeight(x, z, noise, config) {
     }
   }
 
-  return h;
+  const edgeVariation = noise.noise2D(x * 0.035, z * 0.035) * 5;
+  const distanceToEdge = Math.min(HALF_MAP - Math.abs(x), HALF_MAP - Math.abs(z)) + edgeVariation;
+  const edgeFade = THREE.MathUtils.smoothstep(distanceToEdge, 0, 28);
+  return THREE.MathUtils.lerp(-2, h, edgeFade);
 }
 
 // Su ve Biyom Algılama Yardımcısı
@@ -2055,15 +2058,6 @@ window.addEventListener('mousedown', (e) => {
   }
 }, { capture: true, passive: false });
 
-document.getElementById('btn-new-game')?.addEventListener('click', () => {
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ type: 'NEW_MAP_REQUEST' }));
-    showNotification('🎲 Yeni harita isteği sunucuya gönderildi...');
-  } else {
-    generateMap();
-  }
-});
-
 document.getElementById('btn-reset-cam')?.addEventListener('click', focusCameraOnCamp);
 
 function focusCameraOnCamp() {
@@ -2277,7 +2271,7 @@ function generateMap(seed = Math.floor(Math.random() * 1000000)) {
   worldGroup.add(terrainMesh);
 
   // 3. Su Katmanı (Canlı su yansımaları ve derinlik yazım korumalı su yüzeyi)
-  const waterGeo = new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE, 32, 32);
+  const waterGeo = new THREE.PlaneGeometry(MAP_SIZE * 5, MAP_SIZE * 5, 64, 64);
   waterGeo.rotateX(-Math.PI / 2);
   const waterMat = new THREE.MeshStandardMaterial({
     color: 0x186b99,
@@ -2902,6 +2896,12 @@ function handleServerMessage(data) {
 
     case 'CHAT_REJECTED':
       showNotification(data.reason || 'Sohbete yazmak için giriş yapmalısınız.');
+      break;
+
+    case 'ACTION_REJECTED':
+    case 'AUTH_REQUIRED':
+      showNotification(data.reason || 'Bu işlem için giriş yapmalısınız.');
+      if (data.type === 'AUTH_REQUIRED') window.location.assign('/');
       break;
   }
 }

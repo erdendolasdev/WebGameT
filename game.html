@@ -21,10 +21,10 @@
 </head>
 <body>
   <!-- 3D Render Canvas Container -->
-  <div id="game-container"></div>
+  <div id="game-container" hidden></div>
 
   <!-- HUD Overlay -->
-  <div id="ui-layer">
+  <div id="ui-layer" hidden>
     <!-- Game Floating Notification / Toast -->
     <div id="game-toast" class="toast-notification" style="display: none;"></div>
 
@@ -90,9 +90,6 @@
           <span id="online-text">Çevrimiçi</span>
           <span id="player-count-badge" class="player-count">1P</span>
         </div>
-        <button id="btn-new-game" class="btn-game-primary" title="Yeni Rastgele Harita Oluştur (Tüm Oyuncular İçin Senkronize)">
-          <span class="btn-icon">🎲</span> Yeni Koloni
-        </button>
         <div class="time-badge" id="time-badge">☀️ Gündüz</div>
         <div class="fps-badge" id="fps-counter">60 FPS</div>
       </div>
@@ -318,6 +315,19 @@
   <!-- Marquee Drag Selection Box -->
   <div id="selection-box" style="display: none;"></div>
 
-  <script type="module" src="main.js"></script>
+  <main class="game-access" id="game-access">
+    <section class="game-access-card" aria-labelledby="access-title">
+      <a class="game-access-brand" href="/" aria-label="Aethelgard ana sayfa">A</a>
+      <p class="game-access-eyebrow">AETHELGARD · ORTAK DÜNYA</p>
+      <h2 id="access-title">Dünyaya hazırlanıyor...</h2>
+      <p id="access-description" aria-live="polite">Hesap ve dünya durumu kontrol ediliyor.</p>
+      <a class="game-access-link" id="access-account-link" href="/?auth=register" hidden>Hesap oluştur veya giriş yap</a>
+      <button class="btn-game-primary" id="access-action" type="button" hidden>Haritayı aç</button>
+      <p class="game-access-error" id="access-error" role="alert"></p>
+      <a class="game-access-home" href="/">Ana sayfaya dön</a>
+    </section>
+  </main>
+
+  <script src="game-access.js" defer></script>
 </body>
 </html>

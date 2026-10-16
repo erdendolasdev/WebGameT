@@ -14,6 +14,15 @@ let reconnectTimer = null;
 let onlinePlayers = 0;
 const pendingChatMessages = [];
 
+function continueToGameIfRequested() {
+  if (currentUser && sessionStorage.getItem('aethelgard-return-to-game') === 'true') {
+    sessionStorage.removeItem('aethelgard-return-to-game');
+    window.location.assign('/game.html');
+    return true;
+  }
+  return false;
+}
+
 function setAuthMode(mode) {
   authMode = mode;
   const registering = mode === 'register';
@@ -96,6 +105,7 @@ async function loadCurrentUser() {
     const response = await fetch('/api/me');
     const result = await readApiResponse(response);
     setCurrentUser(result.user);
+    continueToGameIfRequested();
   } catch (error) {
     console.error('[Account]', error);
     document.getElementById('world-status').textContent = 'Hesap servisine ulaşılamadı';
@@ -142,6 +152,7 @@ authForm.addEventListener('submit', async event => {
       throw new Error('Sunucu hesap oluşturdu ancak oturum bilgisi dönmedi. Tekrar giriş yapmayı dene.');
     }
     setCurrentUser(result.user);
+    if (continueToGameIfRequested()) return;
     closeAuth();
     showSystemMessage(`Hoş geldin, ${result.user.username}.`);
     document.getElementById('world-status').textContent = 'Aethelgard dünyası seni bekliyor';
@@ -283,3 +294,6 @@ function connectChat() {
 
 loadCurrentUser();
 connectChat();
+
+const requestedAuthMode = new URLSearchParams(window.location.search).get('auth');
+if (requestedAuthMode === 'register' || requestedAuthMode === 'login') openAuth(requestedAuthMode);

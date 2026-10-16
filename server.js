@@ -270,6 +270,37 @@ async function handleAuthRequest(req, res, pathname) {
   }
 }
 
+function handleWorldRequest(req, res, pathname) {
+  if (req.method === 'GET' && pathname === '/api/world') {
+    sendJson(res, 200, { exists: gameState.initialized });
+    return;
+  }
+
+  if (req.method !== 'POST' || pathname !== '/api/world/create') {
+    sendJson(res, 404, { error: 'Uç nokta bulunamadı.' });
+    return;
+  }
+
+  if (!getSessionUser(req)) {
+    sendJson(res, 401, { error: 'Harita oluşturmak için giriş yapmalısın.' });
+    return;
+  }
+
+  if (!gameState.initialized) {
+    gameState.seed = Math.floor(Math.random() * 900000) + 100000;
+    gameState.resources = { food: 80, wood: 150, stone: 60, gold: 200, colonists: 3, maxPop: 10 };
+    gameState.harvestedEntities = [];
+    gameState.buildings = [];
+    gameState.colonistTargets = {};
+    gameState.initialized = true;
+    persistGameState();
+    sendJson(res, 201, { exists: true, created: true });
+    return;
+  }
+
+  sendJson(res, 200, { exists: true, created: false });
+}
+
 const server = http.createServer((req, res) => {
   let requestUrl;
   try {
@@ -279,6 +310,10 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (requestUrl.pathname.startsWith('/api/')) {
+    if (requestUrl.pathname.startsWith('/api/world')) {
+      handleWorldRequest(req, res, requestUrl.pathname);
+      return;
+    }
     handleAuthRequest(req, res, requestUrl.pathname).catch(error => {
       console.error('[API] Beklenmeyen istek hatası:', error);
       sendJson(res, 500, { error: 'Sunucuda beklenmeyen bir hata oluştu.' });
@@ -327,6 +362,7 @@ const wss = new WebSocketServer({ server, maxPayload: 16 * 1024, perMessageDefla
 // Paylaşılan Dünya ve Oyun Durumu
 const gameState = {
   seed: Math.floor(Math.random() * 900000) + 100000,
+  initialized: false,
   resources: { food: 80, wood: 150, stone: 60, gold: 200, colonists: 3, maxPop: 10 },
   harvestedEntities: [],
   buildings: [],
@@ -338,6 +374,7 @@ const savedGameState = loadGameState.get();
 if (savedGameState) {
   const parsedState = JSON.parse(savedGameState.state_json);
   Object.assign(gameState, parsedState);
+  if (typeof parsedState.initialized !== 'boolean') gameState.initialized = true;
   gameState.players = new Map();
   gameState.resources = {
     food: 80,
@@ -351,11 +388,9 @@ if (savedGameState) {
 }
 
 function persistGameState() {
-  const { seed, resources, harvestedEntities, buildings, colonistTargets } = gameState;
-  storeGameState.run(JSON.stringify({ seed, resources, harvestedEntities, buildings, colonistTargets }));
+  const { seed, initialized, resources, harvestedEntities, buildings, colonistTargets } = gameState;
+  storeGameState.run(JSON.stringify({ seed, initialized, resources, harvestedEntities, buildings, colonistTargets }));
 }
-
-if (!savedGameState) persistGameState();
 
 const PLAYER_COLORS = ['#38bdf8', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4'];
 
@@ -393,11 +428,13 @@ wss.on('connection', (ws, req) => {
     type: 'INIT_STATE',
     playerId: playerId,
     playerInfo: playerInfo,
-    seed: gameState.seed,
-    resources: gameState.resources,
-    harvestedEntities: gameState.harvestedEntities,
-    buildings: gameState.buildings,
-    colonistTargets: gameState.colonistTargets,
+    ...(authenticatedUser ? {
+      seed: gameState.seed,
+      resources: gameState.resources,
+      harvestedEntities: gameState.harvestedEntities,
+      buildings: gameState.buildings,
+      colonistTargets: gameState.colonistTargets
+    } : {}),
     chatHistory: recentChat.all(),
     players: playerList
   }));
@@ -413,6 +450,13 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
+      if (!playerInfo.authenticated || !getSessionUser(req)) {
+        ws.send(JSON.stringify({
+          type: 'AUTH_REQUIRED',
+          reason: 'Dünyada işlem yapmak için giriş yapmalısın.'
+        }));
+        return;
+      }
 
       switch (data.type) {
         case 'CURSOR_MOVE':
@@ -491,18 +535,10 @@ wss.on('connection', (ws, req) => {
           break;
 
         case 'NEW_MAP_REQUEST':
-          // Haritayı yeniden oluştur
-          gameState.seed = Math.floor(Math.random() * 900000) + 100000;
-          gameState.harvestedEntities = [];
-          gameState.buildings = [];
-          gameState.colonistTargets = {};
-          gameState.resources = { food: 80, wood: 150, stone: 60, gold: 200, colonists: 3, maxPop: 10 };
-          persistGameState();
-          broadcast({
-            type: 'RELOAD_WORLD',
-            seed: gameState.seed,
-            resources: gameState.resources
-          });
+          ws.send(JSON.stringify({
+            type: 'ACTION_REJECTED',
+            reason: 'Ortak dünya sıfırlanamaz. Yeni harita yönetici ayarıyla oluşturulmalı.'
+          }));
           break;
 
         case 'CHAT_MESSAGE':
