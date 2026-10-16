@@ -2720,7 +2720,8 @@ let lastCursorSendTime = 0;
 function initMultiplayer() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host || 'localhost:3000';
-  const wsUrl = `${protocol}//${host}`;
+  const worldId = new URLSearchParams(window.location.search).get('world');
+  const wsUrl = `${protocol}//${host}/?world=${encodeURIComponent(worldId || '')}`;
 
   try {
     socket = new WebSocket(wsUrl);
@@ -2761,7 +2762,7 @@ function handleServerMessage(data) {
     case 'INIT_STATE':
       myPlayerId = data.playerId;
       myPlayerInfo = data.playerInfo;
-      updateOnlineBadge(true, `Çevrimiçi (${data.playerInfo.name})`, data.players ? data.players.length : 1);
+      updateOnlineBadge(true, `Çevrimiçi · ${data.world ? data.world.name : data.playerInfo.name}`, data.players ? data.players.length : 1);
 
       // Harita Senkronizasyonu: Sunucudaki dünya tohumu (seed) ile aynı haritayı oluştur
       if (data.seed !== currentSeed) {

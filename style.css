@@ -942,6 +942,8 @@ kbd {
 
 .game-access-card {
   width: min(100%, 440px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
   padding: 36px;
   border: 1px solid rgba(224, 218, 174, 0.18);
   border-radius: 12px;
@@ -993,6 +995,173 @@ kbd {
   justify-content: center;
   min-height: 42px;
   padding-inline: 22px;
+}
+
+.server-list {
+  margin: 22px 0 18px;
+  text-align: left;
+}
+
+.server-card,
+.world-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 15px;
+  border: 1px solid rgba(224, 218, 174, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.server-card strong,
+.world-card-details strong {
+  display: block;
+  color: #f4f1e5;
+  font-size: 13px;
+}
+
+.server-card span,
+.world-card-details span {
+  display: block;
+  margin-top: 4px;
+  color: #9aa59c;
+  font-size: 11px;
+}
+
+.server-card > span::before {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: #68c78d;
+  content: "";
+}
+
+.world-lobby {
+  margin: 22px 0 10px;
+  text-align: left;
+}
+
+.world-lobby-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.world-lobby-heading h3 {
+  color: #e8e4d6;
+  font-size: 14px;
+}
+
+.world-lobby-heading span,
+.world-list-empty {
+  color: #9aa59c;
+  font-size: 10px;
+}
+
+.world-list {
+  display: grid;
+  gap: 8px;
+}
+
+.world-card-details {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.game-access-secondary {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid rgba(224, 218, 174, 0.22);
+  border-radius: 6px;
+  color: #e8dfb5;
+  background: rgba(224, 218, 174, 0.06);
+  font: 600 11px var(--font-sans);
+  cursor: pointer;
+}
+
+.game-access-secondary:hover {
+  background: rgba(224, 218, 174, 0.12);
+}
+
+.world-list-empty {
+  margin: 12px 0;
+  line-height: 1.5;
+}
+
+#show-create-world {
+  width: 100%;
+  margin-top: 9px;
+}
+
+.create-world-form {
+  display: grid;
+  gap: 9px;
+  margin-top: 13px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(224, 218, 174, 0.12);
+}
+
+.create-world-form > label,
+.create-world-form legend {
+  color: #cbd2ca;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.create-world-form > input {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid rgba(224, 218, 174, 0.2);
+  border-radius: 6px;
+  color: #f4f1e5;
+  background: rgba(0, 0, 0, 0.22);
+  font: 12px var(--font-sans);
+}
+
+.create-world-form fieldset {
+  display: grid;
+  gap: 7px;
+  margin: 4px 0;
+  padding: 0;
+  border: 0;
+}
+
+.create-world-form legend {
+  margin-bottom: 7px;
+}
+
+.world-mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px;
+  border: 1px solid rgba(224, 218, 174, 0.12);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.world-mode-option input {
+  margin-top: 3px;
+  accent-color: #d9bd65;
+}
+
+.world-mode-option strong,
+.world-mode-option small {
+  display: block;
+  color: #e8e4d6;
+  font-size: 11px;
+}
+
+.world-mode-option small {
+  margin-top: 3px;
+  color: #9aa59c;
+  font-size: 10px;
+  line-height: 1.4;
 }
 
 .game-access-error {
@@ -1048,5 +1217,10 @@ kbd {
 
   .game-access-card {
     padding: 30px 22px;
+  }
+
+  .server-card,
+  .world-card {
+    align-items: flex-start;
   }
 }

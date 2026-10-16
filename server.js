@@ -54,6 +54,16 @@ database.exec(`
     state_json TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS worlds (
+    id TEXT PRIMARY KEY,
+    owner_username TEXT COLLATE NOCASE REFERENCES users(username),
+    name TEXT NOT NULL,
+    mode TEXT NOT NULL CHECK (mode IN ('solo', 'shared')),
+    seed INTEGER NOT NULL,
+    state_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (owner_username)
+  );
 `);
 
 function migrateLegacyUsers() {
@@ -121,11 +131,79 @@ const pruneChatMessages = database.prepare(
   'DELETE FROM chat_messages WHERE id NOT IN (SELECT id FROM chat_messages ORDER BY id DESC LIMIT 2000)'
 );
 const loadGameState = database.prepare('SELECT state_json FROM game_state WHERE id = 1');
-const storeGameState = database.prepare(`
-  INSERT INTO game_state (id, state_json, updated_at)
-  VALUES (1, ?, CURRENT_TIMESTAMP)
-  ON CONFLICT(id) DO UPDATE SET state_json = excluded.state_json, updated_at = CURRENT_TIMESTAMP
+const listWorlds = database.prepare(`
+  SELECT id, owner_username AS ownerUsername, name, mode, seed, state_json AS stateJson
+  FROM worlds
+  WHERE mode = 'shared' OR owner_username = ? COLLATE NOCASE
+  ORDER BY created_at ASC
 `);
+const findWorld = database.prepare(`
+  SELECT id, owner_username AS ownerUsername, name, mode, seed, state_json AS stateJson
+  FROM worlds WHERE id = ?
+`);
+const findOwnedWorld = database.prepare('SELECT id FROM worlds WHERE owner_username = ? COLLATE NOCASE');
+const insertWorld = database.prepare(`
+  INSERT INTO worlds (id, owner_username, name, mode, seed, state_json)
+  VALUES (?, ?, ?, ?, ?, ?)
+`);
+const persistWorldState = database.prepare('UPDATE worlds SET state_json = ? WHERE id = ?');
+const hasAnyWorld = database.prepare('SELECT 1 AS found FROM worlds LIMIT 1');
+const worldStates = new Map();
+const DEFAULT_RESOURCES = { food: 80, wood: 150, stone: 60, gold: 200, colonists: 3, maxPop: 10 };
+
+function createWorldState(row) {
+  const saved = JSON.parse(row.stateJson);
+  return {
+    id: row.id,
+    ownerUsername: row.ownerUsername,
+    name: row.name,
+    mode: row.mode,
+    seed: row.seed,
+    resources: { ...DEFAULT_RESOURCES, ...saved.resources },
+    harvestedEntities: saved.harvestedEntities || [],
+    buildings: saved.buildings || [],
+    colonistTargets: saved.colonistTargets || {},
+    players: new Map()
+  };
+}
+
+function getWorldState(id) {
+  if (worldStates.has(id)) return worldStates.get(id);
+  const row = findWorld.get(id);
+  if (!row) return null;
+  const world = createWorldState(row);
+  worldStates.set(id, world);
+  return world;
+}
+
+function saveWorldState(world) {
+  persistWorldState.run(JSON.stringify({
+    seed: world.seed,
+    resources: world.resources,
+    harvestedEntities: world.harvestedEntities,
+    buildings: world.buildings,
+    colonistTargets: world.colonistTargets
+  }), world.id);
+}
+
+function migrateLegacyWorld() {
+  const savedGameState = loadGameState.get();
+  if (!savedGameState || hasAnyWorld.get()) return;
+  const saved = JSON.parse(savedGameState.state_json);
+  if (saved.initialized === false) return;
+  const seed = Number.isInteger(saved.seed) ? saved.seed : Math.floor(Math.random() * 900000) + 100000;
+  const state = {
+    seed,
+    resources: { ...DEFAULT_RESOURCES, ...saved.resources },
+    harvestedEntities: saved.harvestedEntities || [],
+    buildings: saved.buildings || [],
+    colonistTargets: saved.colonistTargets || {}
+  };
+  insertWorld.run('legacy-world-1', null, 'Aethelgard - Eski Dünya', 'shared', seed, JSON.stringify(state));
+  console.log('[DB] Önceki ortak dünya sunucu listesine taşındı.');
+}
+
+migrateLegacyWorld();
 
 function sendJson(res, statusCode, body, headers = {}) {
   if (res.writableEnded || res.destroyed) return;
@@ -270,35 +348,93 @@ async function handleAuthRequest(req, res, pathname) {
   }
 }
 
-function handleWorldRequest(req, res, pathname) {
-  if (req.method === 'GET' && pathname === '/api/world') {
-    sendJson(res, 200, { exists: gameState.initialized });
+async function handleWorldRequest(req, res, pathname) {
+  if (req.method === 'GET' && pathname === '/api/servers') {
+    const worldCount = Number(database.prepare('SELECT COUNT(*) AS count FROM worlds').get().count);
+    sendJson(res, 200, {
+      servers: [{
+        id: 'aethelgard-1',
+        name: 'Aethelgard 1',
+        status: 'online',
+        worlds: worldCount
+      }]
+    });
     return;
   }
 
-  if (req.method !== 'POST' || pathname !== '/api/world/create') {
+  const user = getSessionUser(req);
+  if (!user) {
+    sendJson(res, 401, { error: 'Dünyaları görmek veya harita oluşturmak için giriş yapmalısın.' });
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/worlds') {
+    const worlds = listWorlds.all(user.username).map(row => ({
+      id: row.id,
+      name: row.name,
+      mode: row.mode,
+      owner: row.ownerUsername,
+      players: worldStates.get(row.id)?.players.size || 0
+    }));
+    const ownedWorld = findOwnedWorld.get(user.username);
+    sendJson(res, 200, {
+      server: { id: 'aethelgard-1', name: 'Aethelgard 1' },
+      worlds,
+      ownedWorldId: ownedWorld ? ownedWorld.id : null
+    });
+    return;
+  }
+
+  if (req.method !== 'POST' || pathname !== '/api/worlds') {
     sendJson(res, 404, { error: 'Uç nokta bulunamadı.' });
     return;
   }
 
-  if (!getSessionUser(req)) {
-    sendJson(res, 401, { error: 'Harita oluşturmak için giriş yapmalısın.' });
+  const existingWorld = findOwnedWorld.get(user.username);
+  if (existingWorld) {
+    sendJson(res, 409, { error: 'Her hesap yalnızca bir harita oluşturabilir.' });
     return;
   }
 
-  if (!gameState.initialized) {
-    gameState.seed = Math.floor(Math.random() * 900000) + 100000;
-    gameState.resources = { food: 80, wood: 150, stone: 60, gold: 200, colonists: 3, maxPop: 10 };
-    gameState.harvestedEntities = [];
-    gameState.buildings = [];
-    gameState.colonistTargets = {};
-    gameState.initialized = true;
-    persistGameState();
-    sendJson(res, 201, { exists: true, created: true });
+  let body;
+  try {
+    body = await readRequestBody(req);
+  } catch (error) {
+    sendJson(res, error.statusCode || 400, { error: error.message });
     return;
   }
 
-  sendJson(res, 200, { exists: true, created: false });
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  const mode = body.mode;
+  if (name.length < 3 || name.length > 32) {
+    sendJson(res, 400, { error: 'Harita adı 3-32 karakter olmalı.' });
+    return;
+  }
+  if (!['solo', 'shared'].includes(mode)) {
+    sendJson(res, 400, { error: 'Oyun türü tek kişilik veya ortak olmalı.' });
+    return;
+  }
+
+  const id = crypto.randomUUID();
+  const seed = Math.floor(Math.random() * 900000) + 100000;
+  const state = {
+    seed,
+    resources: DEFAULT_RESOURCES,
+    harvestedEntities: [],
+    buildings: [],
+    colonistTargets: {}
+  };
+  try {
+    insertWorld.run(id, user.username, name, mode, seed, JSON.stringify(state));
+  } catch (error) {
+    if (error.code === 'ERR_SQLITE_ERROR' && /UNIQUE constraint failed/i.test(error.message)) {
+      sendJson(res, 409, { error: 'Her hesap yalnızca bir harita oluşturabilir.' });
+      return;
+    }
+    throw error;
+  }
+  const world = getWorldState(id);
+  sendJson(res, 201, { world: { id, name, mode, owner: user.username, players: world.players.size } });
 }
 
 const server = http.createServer((req, res) => {
@@ -311,7 +447,17 @@ const server = http.createServer((req, res) => {
   }
   if (requestUrl.pathname.startsWith('/api/')) {
     if (requestUrl.pathname.startsWith('/api/world')) {
-      handleWorldRequest(req, res, requestUrl.pathname);
+      handleWorldRequest(req, res, requestUrl.pathname).catch(error => {
+        console.error('[Worlds] İstek işlenemedi:', error);
+        sendJson(res, 500, { error: 'Dünya işlemi sırasında sunucu hatası oluştu.' });
+      });
+      return;
+    }
+    if (requestUrl.pathname === '/api/servers') {
+      handleWorldRequest(req, res, requestUrl.pathname).catch(error => {
+        console.error('[Servers] İstek işlenemedi:', error);
+        sendJson(res, 500, { error: 'Sunucu listesi alınamadı.' });
+      });
       return;
     }
     handleAuthRequest(req, res, requestUrl.pathname).catch(error => {
@@ -359,42 +505,9 @@ const server = http.createServer((req, res) => {
 // ==========================================================================
 const wss = new WebSocketServer({ server, maxPayload: 16 * 1024, perMessageDeflate: false });
 
-// Paylaşılan Dünya ve Oyun Durumu
-const gameState = {
-  seed: Math.floor(Math.random() * 900000) + 100000,
-  initialized: false,
-  resources: { food: 80, wood: 150, stone: 60, gold: 200, colonists: 3, maxPop: 10 },
-  harvestedEntities: [],
-  buildings: [],
-  colonistTargets: {},
-  players: new Map()    // Bağlı oyuncular: { id, name, color, cursor: {x, z} }
-};
-
-const savedGameState = loadGameState.get();
-if (savedGameState) {
-  const parsedState = JSON.parse(savedGameState.state_json);
-  Object.assign(gameState, parsedState);
-  if (typeof parsedState.initialized !== 'boolean') gameState.initialized = true;
-  gameState.players = new Map();
-  gameState.resources = {
-    food: 80,
-    wood: 150,
-    stone: 60,
-    gold: 200,
-    colonists: 3,
-    maxPop: 10,
-    ...parsedState.resources
-  };
-}
-
-function persistGameState() {
-  const { seed, initialized, resources, harvestedEntities, buildings, colonistTargets } = gameState;
-  storeGameState.run(JSON.stringify({ seed, initialized, resources, harvestedEntities, buildings, colonistTargets }));
-}
-
 const PLAYER_COLORS = ['#38bdf8', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4'];
 
-function broadcast(msg, excludeWs = null) {
+function broadcastAll(msg, excludeWs = null) {
   const data = JSON.stringify(msg);
   wss.clients.forEach(client => {
     if (client !== excludeWs && client.readyState === WebSocket.OPEN) {
@@ -403,144 +516,86 @@ function broadcast(msg, excludeWs = null) {
   });
 }
 
+function broadcastWorld(world, msg, excludeWs = null) {
+  const data = JSON.stringify(msg);
+  world.players.forEach((player, client) => {
+    if (client !== excludeWs && client.readyState === WebSocket.OPEN) client.send(data);
+  });
+}
+
+function connectedPlayers() {
+  return Array.from(wss.clients)
+    .filter(client => client.readyState === WebSocket.OPEN && client.playerInfo)
+    .map(client => client.playerInfo);
+}
+
 let nextPlayerId = 1;
 
 wss.on('connection', (ws, req) => {
+  const requestUrl = new URL(req.url, 'http://localhost');
   const playerId = nextPlayerId++;
   const playerColor = PLAYER_COLORS[(playerId - 1) % PLAYER_COLORS.length];
   const authenticatedUser = getSessionUser(req);
   const playerName = authenticatedUser ? authenticatedUser.username : `Lord_${playerId}`;
+  const worldId = requestUrl.searchParams.get('world');
+  const world = worldId ? getWorldState(worldId) : null;
+
+  if (worldId && (
+    !authenticatedUser ||
+    !world ||
+    (world.mode === 'solo' && world.ownerUsername.toLowerCase() !== authenticatedUser.username.toLowerCase())
+  )) {
+    ws.send(JSON.stringify({
+      type: 'WORLD_ACCESS_DENIED',
+      reason: 'Bu haritaya erişim iznin yok.'
+    }));
+    ws.close(1008, 'World access denied');
+    return;
+  }
 
   const playerInfo = {
     id: playerId,
     name: playerName,
     color: playerColor,
     authenticated: Boolean(authenticatedUser),
+    worldId: world ? world.id : null,
     cursor: { x: 0, z: 0 }
   };
-  gameState.players.set(ws, playerInfo);
+  ws.playerInfo = playerInfo;
+  if (world) world.players.set(ws, playerInfo);
 
-  console.log(`[Online] ${playerName} bağlandı. (Toplam: ${gameState.players.size} Oyuncu)`);
+  console.log(`[Online] ${playerName} ${world ? `"${world.name}" dünyasına` : 'ana sayfaya'} bağlandı. (${wss.clients.size} bağlantı)`);
 
-  // 1. Yeni Oyuncuya Dünya Durumunu Gönder (Tam Senkronizasyon)
-  const playerList = Array.from(gameState.players.values());
   ws.send(JSON.stringify({
     type: 'INIT_STATE',
     playerId: playerId,
     playerInfo: playerInfo,
-    ...(authenticatedUser ? {
-      seed: gameState.seed,
-      resources: gameState.resources,
-      harvestedEntities: gameState.harvestedEntities,
-      buildings: gameState.buildings,
-      colonistTargets: gameState.colonistTargets
+    ...(world ? {
+      world: { id: world.id, name: world.name, mode: world.mode },
+      seed: world.seed,
+      resources: world.resources,
+      harvestedEntities: world.harvestedEntities,
+      buildings: world.buildings,
+      colonistTargets: world.colonistTargets,
+      players: Array.from(world.players.values())
     } : {}),
     chatHistory: recentChat.all(),
-    players: playerList
+    ...(!world ? { players: connectedPlayers() } : {})
   }));
 
-  // 2. Diğer Oyunculara Yeni Oyuncuyu Duyur
-  broadcast({
-    type: 'PLAYER_JOINED',
-    player: playerInfo,
-    playerCount: gameState.players.size
-  }, ws);
+  if (world) {
+    broadcastWorld(world, {
+      type: 'PLAYER_JOINED',
+      player: playerInfo,
+      playerCount: world.players.size
+    }, ws);
+  }
+  broadcastAll({ type: 'PLAYER_COUNT', playerCount: wss.clients.size });
 
-  // 3. Mesaj Dinleyici
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-      if (!playerInfo.authenticated || !getSessionUser(req)) {
-        ws.send(JSON.stringify({
-          type: 'AUTH_REQUIRED',
-          reason: 'Dünyada işlem yapmak için giriş yapmalısın.'
-        }));
-        return;
-      }
-
       switch (data.type) {
-        case 'CURSOR_MOVE':
-          playerInfo.cursor = { x: data.x, z: data.z };
-          broadcast({
-            type: 'PLAYER_CURSOR',
-            playerId: playerId,
-            x: data.x,
-            z: data.z
-          }, ws);
-          break;
-
-        case 'COMMAND_COLONIST':
-          // Kolonist hareket emri
-          gameState.colonistTargets[data.colonistId] = { x: data.targetX, z: data.targetZ, task: data.task };
-          broadcast({
-            type: 'COLONIST_MOVED',
-            playerId: playerId,
-            colonistId: data.colonistId,
-            targetX: data.targetX,
-            targetZ: data.targetZ,
-            task: data.task
-          });
-          break;
-
-        case 'HARVEST_RESOURCE':
-          // Kaynak toplama emri
-          broadcast({
-            type: 'HARVEST_STARTED',
-            playerId: playerId,
-            colonistId: data.colonistId,
-            entityId: data.entityId,
-            resType: data.resType
-          });
-          break;
-
-        case 'HARVEST_COMPLETED':
-          // Ağaç/Kaya toplandı
-          if (!gameState.harvestedEntities.includes(data.entityId)) {
-            gameState.harvestedEntities.push(data.entityId);
-            if (data.resType === 'wood') gameState.resources.wood += data.amount;
-            else if (data.resType === 'stone') gameState.resources.stone += data.amount;
-            else if (data.resType === 'food') gameState.resources.food += data.amount;
-
-            persistGameState();
-            broadcast({
-              type: 'RESOURCE_DEPLETED',
-              entityId: data.entityId,
-              resType: data.resType,
-              amount: data.amount,
-              resources: gameState.resources,
-              harvesterName: playerInfo.name
-            });
-          }
-          break;
-
-        case 'PLACE_BUILDING':
-          // Yeni bina inşaatı
-          const building = {
-            id: 'bld_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-            defId: data.defId,
-            pos: data.pos,
-            builderName: playerInfo.name
-          };
-          gameState.buildings.push(building);
-          if (data.cost) {
-            gameState.resources.wood -= (data.cost.wood || 0);
-            gameState.resources.stone -= (data.cost.stone || 0);
-          }
-          persistGameState();
-          broadcast({
-            type: 'BUILDING_PLACED',
-            building: building,
-            resources: gameState.resources
-          });
-          break;
-
-        case 'NEW_MAP_REQUEST':
-          ws.send(JSON.stringify({
-            type: 'ACTION_REJECTED',
-            reason: 'Ortak dünya sıfırlanamaz. Yeni harita yönetici ayarıyla oluşturulmalı.'
-          }));
-          break;
-
         case 'CHAT_MESSAGE':
           if (!playerInfo.authenticated || !getSessionUser(req)) {
             ws.send(JSON.stringify({
@@ -563,11 +618,103 @@ wss.on('connection', (ws, req) => {
             chatMessage.time
           );
           pruneChatMessages.run();
-          broadcast({
-            type: 'CHAT_MESSAGE',
-            playerId: playerId,
-            ...chatMessage
+          broadcastAll({ type: 'CHAT_MESSAGE', playerId, ...chatMessage });
+          break;
+      }
+
+      if (data.type === 'CHAT_MESSAGE') return;
+      if (!playerInfo.authenticated || !getSessionUser(req)) {
+        ws.send(JSON.stringify({
+          type: 'AUTH_REQUIRED',
+          reason: 'Dünyada işlem yapmak için giriş yapmalısın.'
+        }));
+        return;
+      }
+      if (!world) {
+        ws.send(JSON.stringify({
+          type: 'ACTION_REJECTED',
+          reason: 'Önce sunucudan bir harita seçmelisin.'
+        }));
+        return;
+      }
+
+      switch (data.type) {
+        case 'CURSOR_MOVE':
+          playerInfo.cursor = { x: data.x, z: data.z };
+          broadcastWorld(world, {
+            type: 'PLAYER_CURSOR',
+            playerId,
+            x: data.x,
+            z: data.z
+          }, ws);
+          break;
+
+        case 'COMMAND_COLONIST':
+          world.colonistTargets[data.colonistId] = { x: data.targetX, z: data.targetZ, task: data.task };
+          broadcastWorld(world, {
+            type: 'COLONIST_MOVED',
+            playerId,
+            colonistId: data.colonistId,
+            targetX: data.targetX,
+            targetZ: data.targetZ,
+            task: data.task
           });
+          break;
+
+        case 'HARVEST_RESOURCE':
+          broadcastWorld(world, {
+            type: 'HARVEST_STARTED',
+            playerId,
+            colonistId: data.colonistId,
+            entityId: data.entityId,
+            resType: data.resType
+          });
+          break;
+
+        case 'HARVEST_COMPLETED':
+          if (!world.harvestedEntities.includes(data.entityId)) {
+            world.harvestedEntities.push(data.entityId);
+            if (data.resType === 'wood') world.resources.wood += data.amount;
+            else if (data.resType === 'stone') world.resources.stone += data.amount;
+            else if (data.resType === 'food') world.resources.food += data.amount;
+
+            saveWorldState(world);
+            broadcastWorld(world, {
+              type: 'RESOURCE_DEPLETED',
+              entityId: data.entityId,
+              resType: data.resType,
+              amount: data.amount,
+              resources: world.resources,
+              harvesterName: playerInfo.name
+            });
+          }
+          break;
+
+        case 'PLACE_BUILDING':
+          const building = {
+            id: 'bld_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+            defId: data.defId,
+            pos: data.pos,
+            builderName: playerInfo.name
+          };
+          world.buildings.push(building);
+          if (data.cost) {
+            world.resources.wood -= (data.cost.wood || 0);
+            world.resources.stone -= (data.cost.stone || 0);
+          }
+          saveWorldState(world);
+          broadcastWorld(world, {
+            type: 'BUILDING_PLACED',
+            building: building,
+            resources: world.resources
+          });
+          break;
+
+        case 'NEW_MAP_REQUEST':
+          ws.send(JSON.stringify({
+            type: 'ACTION_REJECTED',
+            reason: 'Harita oluşturma hakkını zaten kullandın.'
+          }));
           break;
       }
     } catch (e) {
@@ -576,13 +723,16 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', () => {
-    gameState.players.delete(ws);
-    console.log(`[Online] ${playerName} ayrıldı. (Kalan: ${gameState.players.size})`);
-    broadcast({
-      type: 'PLAYER_LEFT',
-      playerId: playerId,
-      playerCount: gameState.players.size
-    });
+    if (world) {
+      world.players.delete(ws);
+      broadcastWorld(world, {
+        type: 'PLAYER_LEFT',
+        playerId,
+        playerCount: world.players.size
+      });
+    }
+    broadcastAll({ type: 'PLAYER_COUNT', playerCount: wss.clients.size });
+    console.log(`[Online] ${playerName} bağlantısı kapandı. (${wss.clients.size} bağlantı)`);
   });
 });
 

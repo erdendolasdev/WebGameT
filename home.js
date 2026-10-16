@@ -277,6 +277,11 @@ function connectChat() {
       onlineCount.textContent = String(onlinePlayers);
       return;
     }
+    if (message.type === 'PLAYER_COUNT') {
+      onlinePlayers = message.playerCount;
+      onlineCount.textContent = String(onlinePlayers);
+      return;
+    }
     if (message.type === 'CHAT_MESSAGE') {
       appendChatMessage(message);
       return;

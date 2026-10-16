@@ -318,11 +318,36 @@
   <main class="game-access" id="game-access">
     <section class="game-access-card" aria-labelledby="access-title">
       <a class="game-access-brand" href="/" aria-label="Aethelgard ana sayfa">A</a>
-      <p class="game-access-eyebrow">AETHELGARD · ORTAK DÜNYA</p>
+      <p class="game-access-eyebrow">AETHELGARD · OYUN SUNUCULARI</p>
       <h2 id="access-title">Dünyaya hazırlanıyor...</h2>
       <p id="access-description" aria-live="polite">Hesap ve dünya durumu kontrol ediliyor.</p>
       <a class="game-access-link" id="access-account-link" href="/?auth=register" hidden>Hesap oluştur veya giriş yap</a>
-      <button class="btn-game-primary" id="access-action" type="button" hidden>Haritayı aç</button>
+      <div id="server-list" class="server-list" hidden></div>
+      <div id="world-lobby" class="world-lobby" hidden>
+        <div class="world-lobby-heading">
+          <h3>Haritalar</h3>
+          <span id="map-creation-status"></span>
+        </div>
+        <div id="world-list" class="world-list"></div>
+        <p id="world-list-empty" class="world-list-empty" hidden>Henüz ortak harita yok. Kendi haritanı oluşturabilirsin.</p>
+        <button class="game-access-secondary" id="show-create-world" type="button" hidden>＋ Yeni harita oluştur</button>
+        <form id="create-world-form" class="create-world-form" hidden>
+          <label for="world-name">Harita adı</label>
+          <input id="world-name" name="name" minlength="3" maxlength="32" required>
+          <fieldset>
+            <legend>Nasıl oynamak istersin?</legend>
+            <label class="world-mode-option">
+              <input type="radio" name="mode" value="shared" checked>
+              <span><strong>Ortak</strong><small>Diğer oyuncular listeden bulup katılabilir.</small></span>
+            </label>
+            <label class="world-mode-option">
+              <input type="radio" name="mode" value="solo">
+              <span><strong>Tek kişilik</strong><small>Harita yalnızca sana görünür.</small></span>
+            </label>
+          </fieldset>
+          <button class="btn-game-primary" id="create-world-submit" type="submit">Haritayı oluştur</button>
+        </form>
+      </div>
       <p class="game-access-error" id="access-error" role="alert"></p>
       <a class="game-access-home" href="/">Ana sayfaya dön</a>
     </section>
