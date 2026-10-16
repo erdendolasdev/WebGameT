@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: aethelgard
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /
+    disk:
+      name: aethelgard-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_PATH
+        value: /var/data/aethelgard.sqlite
+      - key: NODE_ENV
+        value: production

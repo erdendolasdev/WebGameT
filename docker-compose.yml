@@ -1,0 +1,14 @@
+services:
+  aethelgard:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      DATABASE_PATH: /data/aethelgard.sqlite
+    volumes:
+      - aethelgard-data:/data
+    restart: unless-stopped
+
+volumes:
+  aethelgard-data:

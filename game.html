@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aethelgard 3D - Koloni Oyunu</title>
+  <meta name="description" content="Three.js tabanlı, 3D izometrik web strateji ve krallık kurma oyunu.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- 3D Render Canvas Container -->
+  <div id="game-container"></div>
+
+  <!-- HUD Overlay -->
+  <div id="ui-layer">
+    <!-- Game Floating Notification / Toast -->
+    <div id="game-toast" class="toast-notification" style="display: none;"></div>
+
+    <!-- Top Resource Bar -->
+    <header id="top-bar" class="glass-panel">
+      <div class="brand">
+        <div class="realm-crest">⚔️</div>
+        <div class="realm-details">
+          <h1 class="realm-title">Aethelgard</h1>
+          <span class="realm-subtitle">Koloni Simülatörü (v0.2)</span>
+        </div>
+      </div>
+
+      <!-- Resource Indicators -->
+      <div class="resource-bar">
+        <div class="resource-item" title="Yiyecek ve Erzak">
+          <span class="res-icon">🍞</span>
+          <div class="res-info">
+            <span class="res-label">Erzak</span>
+            <span class="res-value" id="res-food">80</span>
+          </div>
+        </div>
+
+        <div class="resource-item" title="Kereste Deposu">
+          <span class="res-icon">🪵</span>
+          <div class="res-info">
+            <span class="res-label">Odun</span>
+            <span class="res-value" id="res-wood">150</span>
+          </div>
+        </div>
+
+        <div class="resource-item" title="İnşaat Taşı">
+          <span class="res-icon">🪨</span>
+          <div class="res-info">
+            <span class="res-label">Taş</span>
+            <span class="res-value" id="res-stone">60</span>
+          </div>
+        </div>
+
+        <div class="resource-item" title="Ticaret Parası">
+          <span class="res-icon">🪙</span>
+          <div class="res-info">
+            <span class="res-label">Altın</span>
+            <span class="res-value" id="res-gold">200</span>
+          </div>
+        </div>
+
+        <div class="resource-item" title="Koloni Yerleşimcileri">
+          <span class="res-icon">👥</span>
+          <div class="res-info">
+            <span class="res-label">Kolonistler</span>
+            <span class="res-value" id="res-pop">3 / 10</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- System / Status & New Game Action -->
+      <div class="status-widget">
+        <a class="btn-ghost home-link" href="/" title="Ana sayfaya dön">Ana sayfa</a>
+        <!-- Online Multiplayer Status Badge -->
+        <div class="online-badge" id="online-status" title="Gerçek Zamanlı Online Sunucu Durumu">
+          <span class="online-dot"></span>
+          <span id="online-text">Çevrimiçi</span>
+          <span id="player-count-badge" class="player-count">1P</span>
+        </div>
+        <button id="btn-new-game" class="btn-game-primary" title="Yeni Rastgele Harita Oluştur (Tüm Oyuncular İçin Senkronize)">
+          <span class="btn-icon">🎲</span> Yeni Koloni
+        </button>
+        <div class="time-badge" id="time-badge">☀️ Gündüz</div>
+        <div class="fps-badge" id="fps-counter">60 FPS</div>
+      </div>
+    </header>
+
+    <!-- Bottom Left: Inspector / Colonist & Terrain Info -->
+    <aside id="inspector-panel" class="glass-panel">
+      <!-- Natural Resource Inspection Card (when a tree, rock, or bush is clicked) -->
+      <div id="resource-card" class="inspector-section" style="display: none;">
+        <div class="panel-header">
+          <span class="step-badge" id="res-badge">Doğal Kaynak</span>
+          <h3 id="res-name">Ulu Çam Ağacı</h3>
+        </div>
+        <div class="inspector-content">
+          <div class="info-row">
+            <span class="label">Kaynak Türü:</span>
+            <span class="value highlight" id="res-type-val">🪵 Odun (+16)</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Durum:</span>
+            <span class="value text-success" id="res-status-val">Toplanmaya Hazır</span>
+          </div>
+          <button id="btn-harvest-action" class="btn-game-primary" style="width: 100%; margin-top: 10px; justify-content: center;">
+            <span class="btn-icon">🪓</span> Kaynağı Topla
+          </button>
+          <p class="action-hint" style="margin-top: 8px;">👉 Bir kolonist seçip doğrudan ağaca veya kayaya <strong>Sağ Tıklayarak</strong> da toplatabilirsiniz.</p>
+        </div>
+      </div>
+
+      <!-- Group Colonist Selection Card (when multiple selected) -->
+      <div id="group-card" class="inspector-section" style="display: none;">
+        <div class="panel-header">
+          <span class="step-badge" id="group-count-badge">3 Kolonist</span>
+          <h3>Koloni Ekibi</h3>
+        </div>
+        <div class="colonist-details">
+          <p id="group-summary-text" style="font-size: 0.85rem; color: var(--text-muted);">Toplu Seçim Aktif</p>
+          <div class="group-actions" style="display: flex; gap: 6px; margin-top: 8px;">
+            <button id="btn-group-gather" class="btn-ghost" style="flex: 1;">⛺ Kampa Toplan</button>
+            <button id="btn-group-build" class="btn-ghost" style="flex: 1;">🔨 İnşaata Git</button>
+          </div>
+          <p class="action-hint">👉 Haritaya <strong>Sağ Tıklayarak</strong> tüm grubu aynı anda yönlendirebilirsiniz.</p>
+        </div>
+      </div>
+
+      <!-- Single Colonist Inspection Card (when 1 selected) -->
+      <div id="colonist-card" class="inspector-section" style="display: none;">
+        <div class="panel-header">
+          <span class="step-badge" id="colonist-role-badge">Yerleşimci</span>
+          <h3 id="colonist-name">İsim</h3>
+        </div>
+        <div class="colonist-details">
+          <div class="colonist-status-row">
+            <span>❤️ Sağlık:</span>
+            <div class="progress-bar"><div id="colonist-health-bar" class="progress-fill fill-health" style="width: 100%;"></div></div>
+          </div>
+          <div class="colonist-status-row">
+            <span>🥖 Doygunluk:</span>
+            <div class="progress-bar"><div id="colonist-hunger-bar" class="progress-fill fill-hunger" style="width: 85%;"></div></div>
+          </div>
+          <div class="colonist-status-row">
+            <span>⚡ Enerji:</span>
+            <div class="progress-bar"><div id="colonist-energy-bar" class="progress-fill fill-energy" style="width: 90%;"></div></div>
+          </div>
+          <div class="info-row" style="margin-top: 8px;">
+            <span class="label">Mevcut İş:</span>
+            <span class="value highlight" id="colonist-task">Kampta Bekliyor</span>
+          </div>
+          <p class="action-hint">👉 Haritaya <strong>Sağ Tıklayarak</strong> kolonisti yönlendirebilirsiniz.</p>
+        </div>
+      </div>
+
+      <!-- Terrain Info (when no colonist selected) -->
+      <div id="terrain-info" class="inspector-section">
+        <div class="panel-header">
+          <span class="step-badge">Koloni Bölgesi</span>
+          <h3>Arazi & Keşif</h3>
+        </div>
+        <div class="inspector-content">
+          <div class="info-row">
+            <span class="label">İmleç Konumu:</span>
+            <span class="value highlight" id="grid-coord">X: --, Z: --</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Bölge Türü:</span>
+            <span class="value" id="tile-type">Çayır / Yeşil Vadi</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Yerleşim Uygunluğu:</span>
+            <span class="value text-success" id="tile-status">Koloni Kurmaya Uygun</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Online Multiplayer Chat & Event Feed -->
+    <div id="multiplayer-chat-container" class="glass-panel collapsed">
+      <div class="chat-header">
+        <span class="chat-title">💬 Dünya Sohbeti</span>
+        <button id="btn-toggle-chat" class="btn-ghost" title="Sohbeti Aç">+</button>
+      </div>
+      <div id="chat-messages" class="chat-messages">
+        <div class="chat-msg system">⚔️ Aethelgard Online Sunucusuna Bağlanıldı.</div>
+      </div>
+      <div class="chat-input-bar">
+        <input type="text" id="chat-input" placeholder="Mesaj yazın [Enter]..." maxlength="80">
+        <button id="btn-send-chat" class="btn-ghost">Gönder</button>
+      </div>
+    </div>
+
+    <!-- Bottom Center: Build Menu (Mimar / İnşaat Kataloğu) -->
+    <div id="build-system-container">
+      <div id="build-drawer" class="glass-panel" style="display: none;">
+        <div class="build-drawer-header">
+          <div class="drawer-title">
+            <span class="drawer-icon">🔨</span>
+            <h3>Mimar & İnşaat Kataloğu</h3>
+          </div>
+          <div class="build-categories">
+            <button class="build-tab active" data-cat="all">Tümü</button>
+            <button class="build-tab" data-cat="housing">🏠 Barınma</button>
+            <button class="build-tab" data-cat="food">🌾 Gıda</button>
+            <button class="build-tab" data-cat="industry">⚙️ Üretim</button>
+          </div>
+          <button id="btn-close-build" class="btn-ghost" title="Menüyü Kapat [ESC]">✕</button>
+        </div>
+
+        <div class="build-cards-grid">
+          <!-- Ahşap Kulübe -->
+          <div class="build-card" data-building="hut" data-cat="housing">
+            <div class="build-card-icon">🏠</div>
+            <div class="build-card-info">
+              <h4>Ahşap Kulübe</h4>
+              <p class="build-desc">Yerleşimcilerin barınmasını sağlar (+3 Nüfus Kapasitesi).</p>
+              <div class="build-cost">
+                <span class="cost-item">🪵 40</span>
+              </div>
+            </div>
+            <button class="btn-place-building">İnşa Et</button>
+          </div>
+
+          <!-- Göçmen Çadırı -->
+          <div class="build-card" data-building="tent" data-cat="housing">
+            <div class="build-card-icon">⛺</div>
+            <div class="build-card-info">
+              <h4>Basit Çadır</h4>
+              <p class="build-desc">Hızlı ve ucuz sığınak (+1 Nüfus Kapasitesi).</p>
+              <div class="build-cost">
+                <span class="cost-item">🪵 20</span>
+              </div>
+            </div>
+            <button class="btn-place-building">İnşa Et</button>
+          </div>
+
+          <!-- Tahıl Tarlası -->
+          <div class="build-card" data-building="farm" data-cat="food">
+            <div class="build-card-icon">🌾</div>
+            <div class="build-card-info">
+              <h4>Tahıl Tarlası</h4>
+              <p class="build-desc">Düzenli erzak üretir (+2 Erzak / 5sn).</p>
+              <div class="build-cost">
+                <span class="cost-item">🪵 25</span>
+              </div>
+            </div>
+            <button class="btn-place-building">İnşa Et</button>
+          </div>
+
+          <!-- Oduncu Kampı -->
+          <div class="build-card" data-building="woodcutter" data-cat="industry">
+            <div class="build-card-icon">🪓</div>
+            <div class="build-card-info">
+              <h4>Oduncu Kulübesi</h4>
+              <p class="build-desc">Yakındaki ağaçlardan kereste toplar (+3 Odun / 5sn).</p>
+              <div class="build-cost">
+                <span class="cost-item">🪵 45</span>
+                <span class="cost-item">🪨 15</span>
+              </div>
+            </div>
+            <button class="btn-place-building">İnşa Et</button>
+          </div>
+
+          <!-- Taş Ocağı -->
+          <div class="build-card" data-building="quarry" data-cat="industry">
+            <div class="build-card-icon">⛏️</div>
+            <div class="build-card-info">
+              <h4>Taş Ocağı</h4>
+              <p class="build-desc">Kayalıklardan taş çıkarır (+2 Taş / 5sn).</p>
+              <div class="build-cost">
+                <span class="cost-item">🪵 35</span>
+                <span class="cost-item">🪨 20</span>
+              </div>
+            </div>
+            <button class="btn-place-building">İnşa Et</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Build Bar Toggle Button -->
+      <button id="btn-toggle-build" class="btn-build-toggle">
+        <span class="icon">🔨</span>
+        <span class="label">İnşaat Menüsü</span>
+        <kbd>B</kbd>
+      </button>
+    </div>
+
+    <!-- Bottom Right: RTS Controls Guide -->
+    <aside id="controls-panel" class="glass-panel collapsed">
+      <div class="panel-header">
+        <h3>🎮 Koloni Kontrolleri</h3>
+        <button id="btn-toggle-controls" class="btn-ghost" title="Kontrolleri Göster/Gizle">?</button>
+        <button id="btn-reset-cam" class="btn-ghost" title="Kamerayı Kampa Odakla">Kampa Dön</button>
+      </div>
+      <ul class="control-list">
+        <li><kbd>Sol Tık</kbd> / <kbd>Kutu Sürükle</kbd> : Kolonistleri Seç / İnşa Et</li>
+        <li><kbd>Sağ Tık</kbd> : Seçili Kolonistlere Emir Ver (İlerle / Çalış)</li>
+        <li><kbd>Q</kbd> / <kbd>E</kbd> veya <kbd>Tekerlek</kbd> : Kamerayı 360° Döndür</li>
+        <li><kbd>WASD</kbd> : Haritada Özgürce Gezin</li>
+        <li><kbd>B</kbd> : İnşaat Menüsü | <kbd>R</kbd> : Kampa Odaklan</li>
+      </ul>
+    </aside>
+  </div>
+
+  <!-- Marquee Drag Selection Box -->
+  <div id="selection-box" style="display: none;"></div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

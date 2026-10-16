@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101813">
+  <meta name="description" content="Aethelgard'da kendi kolonini kur, dostlarınla aynı dünyada yaşa.">
+  <title>Aethelgard — Kendi dünyanı kur</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="home.css">
+  <script src="home.js" defer></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Aethelgard ana sayfa">
+        <span class="brand-mark" aria-hidden="true">A</span>
+        <span class="brand-name">Aethelgard</span>
+      </a>
+      <nav class="main-nav" aria-label="Ana menü">
+        <a href="#world">Dünya</a>
+        <a href="#community">Topluluk</a>
+      </nav>
+      <div class="header-actions" id="account-actions">
+        <button class="button button-quiet" type="button" data-auth="login">Giriş yap</button>
+        <button class="button button-outline" type="button" data-auth="register">Hesap oluştur</button>
+      </div>
+      <div class="account-menu" id="account-menu" hidden>
+        <span class="account-greeting">Selam, <strong id="account-name"></strong></span>
+        <button class="button button-quiet" type="button" id="logout-button">Çıkış</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" id="world">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="status-light"></span> BÜYÜYEN BİR DÜNYA, SENİN HİKÂYEN</div>
+          <h1>Issız bir vadi.<br><span>Yeni bir dünya.</span></h1>
+          <p class="hero-description">Kolonini kur, kaynaklarını yönet ve Aethelgard'ın yaşayan dünyasında yerini al. Her karar, kuracağın krallığın hikâyesini yazsın.</p>
+          <div class="hero-actions">
+            <a class="button button-gold button-large" id="play-button" href="game.html">Dünyaya katıl <span aria-hidden="true">↗</span></a>
+            <button class="button button-quiet button-large" type="button" data-auth="register">Ücretsiz hesap oluştur</button>
+          </div>
+          <div class="hero-footnote"><span class="online-pulse"></span><span id="world-status">Dünya hazırlanıyor...</span><span class="footnote-divider">·</span> Tarayıcında oyna</div>
+        </div>
+        <div class="world-card" aria-label="Aethelgard dünyası">
+          <div class="world-card-top">
+            <span class="world-label">KUZEY SINIRI</span>
+            <span class="world-coordinate">SEZON 01 · #2663</span>
+          </div>
+          <div class="world-art" role="img" aria-label="Ormanlar ve nehirle çevrili vadi">
+            <div class="sun-disc"></div>
+            <div class="mountain mountain-back"></div>
+            <div class="mountain mountain-front"></div>
+            <div class="river"></div>
+            <div class="forest forest-left"><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="forest forest-right"><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="camp">
+              <span class="camp-smoke"></span>
+              <span class="camp-tent">⌂</span>
+              <span class="camp-fire"></span>
+            </div>
+            <div class="map-caption"><span class="map-dot"></span> YEŞİL VADİ · KEŞFEDİLMEYİ BEKLİYOR</div>
+          </div>
+          <div class="world-card-bottom">
+            <div><span class="metric-value" id="online-count">—</span><span class="metric-label">gezgin çevrimiçi</span></div>
+            <div class="world-card-note"><span aria-hidden="true">✦</span> Her yeni oyun, yeni bir harita</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="feature-strip" aria-label="Oyun özellikleri">
+        <article class="feature"><span class="feature-icon">⌁</span><div><h2>Canlı bir dünya</h2><p>Vadi, orman ve nehirler her oyunda yeniden şekillenir.</p></div></article>
+        <article class="feature"><span class="feature-icon">⌂</span><div><h2>Kendi kolonin</h2><p>Yerleşimcilerini yönet, üret ve yeni yapılar kur.</p></div></article>
+        <article class="feature"><span class="feature-icon">◇</span><div><h2>Birlikte oyna</h2><p>Diğer oyuncularla aynı dünyada buluş, sohbet et.</p></div></article>
+      </section>
+
+      <section class="community" id="community">
+        <div class="community-heading">
+          <div>
+            <div class="eyebrow">KOLONİDEN HABERLER</div>
+            <h2>Dünya sohbeti</h2>
+          </div>
+          <div class="chat-presence"><span class="online-pulse"></span><span id="chat-connection">Bağlanıyor</span></div>
+        </div>
+        <div class="chat-layout">
+          <div class="chat-feed" id="chat-messages" aria-live="polite" aria-label="Global sohbet mesajları">
+            <p class="chat-empty" id="chat-empty">Dünyadan ilk haberi bekliyoruz...</p>
+          </div>
+          <form class="chat-form" id="chat-form">
+            <label class="visually-hidden" for="chat-input">Sohbet mesajı</label>
+            <input id="chat-input" type="text" maxlength="120" placeholder="Koloniye bir selam bırak..." autocomplete="off">
+            <button class="button button-send" type="submit" aria-label="Mesajı gönder">Gönder <span aria-hidden="true">↗</span></button>
+          </form>
+          <p class="chat-hint" id="chat-hint">Sohbete katılmak için hesabınla giriş yap.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <a class="brand footer-brand" href="/"><span class="brand-mark" aria-hidden="true">A</span><span class="brand-name">Aethelgard</span></a>
+      <span>Henüz yazılmamış bir hikâye seni bekliyor.</span>
+      <a href="game.html">Oyunu keşfet <span aria-hidden="true">↗</span></a>
+    </footer>
+  </div>
+
+  <div class="modal-backdrop" id="auth-modal" hidden>
+    <section class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <button class="modal-close" type="button" id="close-auth" aria-label="Pencereyi kapat">×</button>
+      <div class="modal-emblem" aria-hidden="true">A</div>
+      <div class="eyebrow">AETHELGARD'A HOŞ GELDİN</div>
+      <h2 id="auth-title">Yeni bir hikâye başlat.</h2>
+      <p class="auth-description" id="auth-description">Ücretsiz hesabını oluştur, kolonin seni bekliyor.</p>
+      <div class="auth-tabs" role="tablist" aria-label="Hesap işlemi">
+        <button class="auth-tab active" type="button" data-auth-tab="register" role="tab" aria-selected="true">Hesap oluştur</button>
+        <button class="auth-tab" type="button" data-auth-tab="login" role="tab" aria-selected="false">Giriş yap</button>
+      </div>
+      <form id="auth-form">
+        <label for="username">Kullanıcı adı</label>
+        <input id="username" name="username" type="text" minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" autocomplete="username" placeholder="Örn. gezgin_ada" required>
+        <small>3-20 karakter; harf, rakam ve alt çizgi kullanabilirsin.</small>
+        <label for="password">Parola</label>
+        <input id="password" name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="En az 8 karakter" required>
+        <p class="auth-feedback" id="auth-feedback" role="status"></p>
+        <button class="button button-gold button-submit" type="submit" id="auth-submit">Hesabımı oluştur <span aria-hidden="true">↗</span></button>
+      </form>
+      <p class="privacy-note">Hesap bilgilerin bu oyun sunucusunda saklanır. Parolan güvenli biçimde özetlenir.</p>
+    </section>
+  </div>
+</body>
+</html>
